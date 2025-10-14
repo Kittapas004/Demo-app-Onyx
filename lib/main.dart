@@ -3148,8 +3148,13 @@ class NotificationPage extends StatelessWidget {
         ),
         title: const Text(
           'Notifications',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
         ),
+        centerTitle: false,
         actions: [
           TextButton(
             onPressed: () {},
@@ -3168,21 +3173,36 @@ class NotificationPage extends StatelessWidget {
         children: [
           // Tab Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.blue[50],
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    'All  1',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text(
+                        'All',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        '1',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -3192,22 +3212,24 @@ class NotificationPage extends StatelessWidget {
           // Notifications List
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
                 _buildNotificationItem(
+                  context,
                   'Sy',
                   'The auction of Stupid Monkey has ended.\nView auction results !!',
                   '2m',
                   true,
-                  Colors.blue[100]!,
+                  Colors.blue[50]!,
                 ),
                 const SizedBox(height: 12),
                 _buildNotificationItem(
+                  context,
                   'Sy',
                   'Someone has already bid more than you.',
                   '15h',
                   false,
-                  Colors.grey[200]!,
+                  Colors.white,
                 ),
               ],
             ),
@@ -3234,6 +3256,7 @@ class NotificationPage extends StatelessWidget {
   }
 
   Widget _buildNotificationItem(
+    BuildContext context,
     String initial,
     String message,
     String time,
@@ -3245,6 +3268,10 @@ class NotificationPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: backgroundColor == Colors.white ? Colors.grey[300]! : Colors.transparent,
+          width: 1,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3252,9 +3279,9 @@ class NotificationPage extends StatelessWidget {
           // New notification indicator
           if (hasNewIndicator)
             Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(top: 8, right: 12),
+              width: 10,
+              height: 10,
+              margin: const EdgeInsets.only(top: 6, right: 12),
               decoration: const BoxDecoration(
                 color: Colors.blue,
                 shape: BoxShape.circle,
@@ -3269,7 +3296,7 @@ class NotificationPage extends StatelessWidget {
               initial,
               style: const TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
                 color: Colors.black54,
               ),
             ),
@@ -3285,13 +3312,15 @@ class NotificationPage extends StatelessWidget {
                   message,
                   style: const TextStyle(
                     fontSize: 14,
-                    height: 1.4,
+                    height: 1.5,
                     color: Colors.black87,
                   ),
                 ),
               ],
             ),
           ),
+
+          const SizedBox(width: 8),
 
           // Time and menu
           Column(
@@ -3302,13 +3331,14 @@ class NotificationPage extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Icon(
                 Icons.more_horiz,
                 color: Colors.grey[600],
-                size: 20,
+                size: 24,
               ),
             ],
           ),
