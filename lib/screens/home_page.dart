@@ -191,13 +191,27 @@ class _HomePageState extends State<HomePage> {
                     constraints: const BoxConstraints(),
                   ),
                   const SizedBox(width: 12),
-                  const CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Color(0xFF1E293B),
-                    child: Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 24,
+                  ClipOval(
+                    child: Image.network(
+                      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1E293B),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -305,7 +319,7 @@ class _HomePageState extends State<HomePage> {
                   _buildArtworkListItem(
                     'Contemporary Art',
                     '\$30,000',
-                    'https://images.unsplash.com/photo-1549887534-1541e9326642?w=800&q=80',
+                    'https://images.unsplash.com/photo-1536924940846-227afb31e2a5?w=800&q=80',
                   ),
                 ],
               ),

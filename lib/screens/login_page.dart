@@ -124,13 +124,28 @@ class _LoginPageState extends State<LoginPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.g_mobiledata, size: 32),
-                      onPressed: () {},
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.grey.shade300, width: 1),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.g_mobiledata, size: 32),
+                        color: Colors.red,
+                        onPressed: () {},
+                      ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.facebook, size: 32),
-                      onPressed: () {},
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.grey.shade300, width: 1),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.facebook, size: 32),
+                        color: const Color(0xFF1877F2),
+                        onPressed: () {},
+                      ),
                     ),
                   ],
                 ),

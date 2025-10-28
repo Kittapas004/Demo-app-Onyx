@@ -152,9 +152,12 @@ class _AuctionDetailPageState extends State<AuctionDetailPage> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    CircleAvatar(
+                    const CircleAvatar(
                       radius: 16,
-                      backgroundColor: Colors.grey[400],
+                      backgroundImage: NetworkImage(
+                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80',
+                      ),
+                      backgroundColor: Color(0xFF1E293B),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -395,7 +398,9 @@ class _AuctionDetailPageState extends State<AuctionDetailPage> {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
-        onPressed: () {},
+        onPressed: () {
+          _showCustomBidDialog();
+        },
         style: OutlinedButton.styleFrom(
           backgroundColor: const Color(0xFF1E293B),
           foregroundColor: Colors.white,
@@ -404,6 +409,50 @@ class _AuctionDetailPageState extends State<AuctionDetailPage> {
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
         child: const Text('use custom bid'),
+      ),
+    );
+  }
+
+  void _showCustomBidDialog() {
+    final TextEditingController customBidController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter Custom Bid'),
+        content: TextField(
+          controller: customBidController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            hintText: 'Enter amount',
+            prefixText: '\$ ',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (customBidController.text.isNotEmpty) {
+                showDialog(
+                  context: context,
+                  builder: (context) => const ConfirmBidDialog(),
+                ).then((_) {
+                  _resetTimer();
+                });
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1E293B),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
       ),
     );
   }
