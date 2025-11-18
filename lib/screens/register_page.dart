@@ -23,6 +23,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String _selectedGender = 'Male'; // Default gender
+  DateTime? _selectedDate;
   
   // Art Categories Selection
   final Set<String> _selectedCategories = {};
@@ -48,6 +49,33 @@ class _RegisterPageState extends State<RegisterPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF1E293B),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+        _birthDateController.text = '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
+      });
+    }
   }
 
   Future<void> _handleRegister() async {
@@ -127,19 +155,27 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWeb = screenWidth > 600;
+    final maxWidth = isWeb ? 500.0 : double.infinity;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-              // Logo
-              Center(
-                child: Column(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(isWeb ? 48.0 : 24.0),
+            child: Center(
+              child: Container(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                    // Logo
+                    Center(
+                      child: Column(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -264,6 +300,8 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 8),
               TextField(
                 controller: _birthDateController,
+                readOnly: true,
+                onTap: () => _selectDate(context),
                 decoration: InputDecoration(
                   hintText: 'DD/MM/YYYY',
                   filled: true,
@@ -533,6 +571,9 @@ class _RegisterPageState extends State<RegisterPage> {
             ],
           ),
         ),
+              ),
+            ),
+          ),
         ),
       ),
     );

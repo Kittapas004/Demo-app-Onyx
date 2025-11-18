@@ -11,6 +11,7 @@ import 'my_auction_page.dart';
 import 'my_art_page.dart';
 import 'auction_detail_page_new.dart';
 import 'notification_page.dart';
+import 'login_page.dart';
 import '../widgets/drawer_item.dart';
 import '../widgets/placeholder_image.dart';
 
@@ -48,12 +49,46 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleLogout() async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+    );
+
     try {
       final authService = context.read<AuthService>();
       await authService.signOut();
-      // AuthWrapper will handle navigation automatically
+      
+      if (mounted) {
+        // Close loading dialog
+        Navigator.of(context).pop();
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ออกจากระบบสำเร็จ'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        
+        // Navigate to login page and clear all previous routes
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+            (route) => false,
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
+        // Close loading dialog
+        Navigator.of(context).pop();
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('เกิดข้อผิดพลาด: $e'),

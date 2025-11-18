@@ -37,18 +37,29 @@ class _AuctionDetailPageNewState extends State<AuctionDetailPageNew> {
   final TextEditingController _customBidController = TextEditingController();
   late double _selectedBid;
   bool _isPlacingBid = false;
+  double _currentPrice = 0; // Track real-time current price
 
-  // Countdown timer
+  // Countdown timer - reset to 2 minutes on each bid
   late Duration _totalDuration;
   late Duration _remaining;
   Timer? _timer;
+  StreamSubscription<DocumentSnapshot>? _artworkListener;
+  int _lastBidCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _currentPrice = widget.currentPrice;
     _selectedBid = widget.currentPrice + 2000;
-    _totalDuration = const Duration(minutes: 1, seconds: 23);
+    _lastBidCount = widget.bidCount;
+    _totalDuration = const Duration(minutes: 2);
     _remaining = _totalDuration;
+    _startTimer();
+    _listenToArtwork();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (mounted) {
         setState(() {
@@ -62,9 +73,51 @@ class _AuctionDetailPageNewState extends State<AuctionDetailPageNew> {
     });
   }
 
+  void _resetTimer() {
+    if (mounted) {
+      setState(() {
+        _remaining = _totalDuration;
+      });
+      _startTimer();
+    }
+  }
+
+  void _listenToArtwork() {
+    _artworkListener = FirebaseFirestore.instance
+        .collection('artworks')
+        .doc(widget.artworkId)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.exists && mounted) {
+        final data = snapshot.data();
+        if (data != null) {
+          // Update current price
+          if (data['currentBid'] != null) {
+            setState(() {
+              _currentPrice = (data['currentBid'] as num).toDouble();
+            });
+          }
+          
+          // Update bid count and reset timer if needed
+          if (data['bidCount'] != null) {
+            final currentBidCount = data['bidCount'] as int;
+            
+            // Reset timer if bid count increased (new bid placed)
+            if (currentBidCount > _lastBidCount) {
+              _lastBidCount = currentBidCount;
+              _resetTimer();
+              print('Timer reset! New bid count: $currentBidCount');
+            }
+          }
+        }
+      }
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _artworkListener?.cancel();
     _customBidController.dispose();
     super.dispose();
   }
@@ -86,10 +139,13 @@ class _AuctionDetailPageNewState extends State<AuctionDetailPageNew> {
       return;
     }
 
-    // Validate bid amount
-    if (_selectedBid <= widget.currentPrice) {
+    // Validate bid amount against real-time current price
+    if (_selectedBid <= _currentPrice) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bid must be higher than current price')),
+        SnackBar(
+          content: Text('Bid must be higher than current bid of \$${_formatPrice(_currentPrice)}'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -119,7 +175,7 @@ class _AuctionDetailPageNewState extends State<AuctionDetailPageNew> {
         );
         // Update selected bid for next bid
         setState(() {
-          _selectedBid = _selectedBid + 2000;
+          _selectedBid = _currentPrice + 2000;
         });
       }
     } catch (e) {
@@ -338,6 +394,9 @@ class _AuctionDetailPageNewState extends State<AuctionDetailPageNew> {
     final minutes = _remaining.inMinutes;
     final seconds = _remaining.inSeconds % 60;
     final timeString = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    
+    // Calculate progress (0.0 to 1.0)
+    final progress = _remaining.inSeconds / _totalDuration.inSeconds;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -349,33 +408,67 @@ class _AuctionDetailPageNewState extends State<AuctionDetailPageNew> {
         ),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          const Row(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.gavel, color: Colors.white),
-              SizedBox(width: 8),
-              Text(
-                'Live Auction',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              const Row(
+                children: [
+                  Icon(Icons.gavel, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'Live Auction',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  timeString,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              timeString,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+          const SizedBox(height: 12),
+          // Progress bar
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    progress > 0.5
+                        ? Colors.green
+                        : progress > 0.25
+                            ? Colors.orange
+                            : Colors.red,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(
+                '${(_remaining.inSeconds)} seconds remaining',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -569,12 +662,28 @@ class _AuctionDetailPageNewState extends State<AuctionDetailPageNew> {
           icon: const Icon(Icons.check_circle),
           onPressed: () {
             final amount = double.tryParse(_customBidController.text);
-            if (amount != null && amount > widget.currentPrice) {
+            if (amount == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please enter a valid number'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            } else if (amount <= _currentPrice) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Bid must be higher than current bid of \$${_formatPrice(_currentPrice)}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            } else {
               setState(() => _selectedBid = amount);
               _customBidController.clear();
-            } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Please enter valid amount higher than current price')),
+                SnackBar(
+                  content: Text('Custom bid set to \$${_formatPrice(amount)}'),
+                  backgroundColor: Colors.green,
+                ),
               );
             }
           },
