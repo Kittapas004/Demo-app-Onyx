@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import 'login_page.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import 'payment_page.dart';
 import 'profile_page.dart';
 import 'help_page.dart';
 import 'add_your_art_page.dart';
 import 'my_auction_page.dart';
 import 'my_art_page.dart';
-import 'auction_detail_page.dart';
+import 'auction_detail_page_new.dart';
 import 'notification_page.dart';
 import '../widgets/drawer_item.dart';
 import '../widgets/placeholder_image.dart';
@@ -19,6 +22,48 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  String _userName = 'Loading...';
+  String _userEmail = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+    
+    if (currentUser != null) {
+      final userData = await authService.getUserData(currentUser.uid);
+      
+      if (mounted && userData != null) {
+        setState(() {
+          _userName = userData['name'] ?? currentUser.email?.split('@').first ?? 'User';
+          _userEmail = userData['email'] ?? currentUser.email ?? '';
+        });
+      }
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      final authService = context.read<AuthService>();
+      await authService.signOut();
+      // AuthWrapper will handle navigation automatically
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาด: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -26,7 +71,47 @@ class _HomePageState extends State<HomePage> {
       drawer: Drawer(
         child: Column(
           children: [
-            const SizedBox(height: 60),
+            // User Info Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 60, 16, 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white,
+                    child: Text(
+                      _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    _userEmail,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             DrawerItem(
               icon: Icons.home,
               title: 'Home',
@@ -116,13 +201,7 @@ class _HomePageState extends State<HomePage> {
               icon: Icons.logout,
               title: 'Logout',
               isSelected: false,
-              onTap: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (route) => false,
-                );
-              },
+              onTap: _handleLogout,
             ),
             const SizedBox(height: 20),
           ],
@@ -219,18 +298,18 @@ class _HomePageState extends State<HomePage> {
             ),
 
             // Welcome Text
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Welcome Back,',
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   Text(
-                    'Lois Becket',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    _userName,
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -268,24 +347,47 @@ class _HomePageState extends State<HomePage> {
             // New Artwork Horizontal List
             SizedBox(
               height: 245,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildArtworkCard(
-                    'Painting Name',
-                    '\$25,000',
-                    '22 people bid',
-                    'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&q=80',
-                  ),
-                  const SizedBox(width: 16),
-                  _buildArtworkCard(
-                    'Abstract Art',
-                    '\$18,000',
-                    '15 people bid',
-                    'https://images.unsplash.com/photo-1541961017774-22349e4a1262?w=800&q=80',
-                  ),
-                ],
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('artworks')
+                    .orderBy('createdAt', descending: true)
+                    .limit(10)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(
+                      child: Text('No artworks yet'),
+                    );
+                  }
+
+                  final artworks = snapshot.data!.docs;
+
+                  return ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: artworks.length,
+                    separatorBuilder: (context, index) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      final artwork = artworks[index].data() as Map<String, dynamic>;
+                      final artworkId = artworks[index].id;
+                      
+                      return _buildArtworkCard(
+                        artworkId: artworkId,
+                        title: artwork['title'] ?? 'Untitled',
+                        artistName: artwork['artistName'] ?? 'Anonymous',
+                        artistId: artwork['artistId'] ?? '',
+                        price: artwork['currentBid']?.toDouble() ?? artwork['startingPrice']?.toDouble() ?? 0.0,
+                        bidCount: artwork['bidCount'] ?? 0,
+                        imageUrl: artwork['imageUrl'] ?? '',
+                        startingPrice: artwork['startingPrice']?.toDouble() ?? 0.0,
+                      );
+                    },
+                  );
+                },
               ),
             ),
             const SizedBox(height: 16),
@@ -300,42 +402,154 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 16),
 
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildArtworkListItem(
-                    'Modern Art',
-                    '\$15,000',
-                    'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&q=80',
+            // All Artworks List
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('artworks')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(40.0),
+                    child: Center(
+                      child: Text('No artworks yet'),
+                    ),
+                  );
+                }
+
+                final artworks = snapshot.data!.docs;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    children: artworks.map((doc) {
+                      final artwork = doc.data() as Map<String, dynamic>;
+                      final artworkId = doc.id;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AuctionDetailPageNew(
+                                  artworkId: artworkId,
+                                  title: artwork['title'] ?? 'Untitled',
+                                  artist: artwork['artistName'] ?? 'Anonymous',
+                                  artistId: artwork['artistId'] ?? '',
+                                  imageUrl: artwork['imageUrl'] ?? '',
+                                  startingPrice: artwork['startingPrice']?.toDouble() ?? 0.0,
+                                  currentPrice: artwork['currentBid']?.toDouble() ?? artwork['startingPrice']?.toDouble() ?? 0.0,
+                                  bidCount: artwork['bidCount'] ?? 0,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withValues(alpha: 0.15),
+                                  spreadRadius: 1,
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                // Artwork Image (Square, small)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: ArtworkImage(
+                                    imageUrl: artwork['imageUrl'] ?? '',
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Artwork Info
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        artwork['title'] ?? 'Untitled',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Current Bid: \$${((artwork['currentBid']?.toDouble() ?? artwork['startingPrice']?.toDouble() ?? 0.0) / 1000).toStringAsFixed(1)}k',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.green[700],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Arrow Icon
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.arrow_forward,
+                                    color: Colors.black54,
+                                    size: 20,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                  const SizedBox(height: 12),
-                  _buildArtworkListItem(
-                    'Classic Painting',
-                    '\$22,000',
-                    'https://images.unsplash.com/photo-1561214115-f2f134cc4912?w=800&q=80',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildArtworkListItem(
-                    'Contemporary Art',
-                    '\$30,000',
-                    'https://images.unsplash.com/photo-1536924940846-227afb31e2a5?w=800&q=80',
-                  ),
-                ],
-              ),
+                );
+              },
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildArtworkCard(
-    String title,
-    String price,
-    String people,
-    String imageUrl,
-  ) {
+  Widget _buildArtworkCard({
+    required String artworkId,
+    required String title,
+    required String artistName,
+    required String artistId,
+    required double price,
+    required int bidCount,
+    required String imageUrl,
+    required double startingPrice,
+  }) {
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -357,10 +571,15 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AuctionDetailPage(
+                  builder: (context) => AuctionDetailPageNew(
+                    artworkId: artworkId,
                     title: title,
-                    artist: 'Artist Name',
+                    artist: artistName,
+                    artistId: artistId,
                     imageUrl: imageUrl,
+                    startingPrice: startingPrice,
+                    currentPrice: price,
+                    bidCount: bidCount,
                   ),
                 ),
               );
@@ -415,7 +634,7 @@ class _HomePageState extends State<HomePage> {
                           style: TextStyle(fontSize: 11, color: Colors.grey),
                         ),
                         Text(
-                          price,
+                          '\$${_formatPrice(price)}',
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -428,10 +647,15 @@ class _HomePageState extends State<HomePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => AuctionDetailPage(
+                            builder: (context) => AuctionDetailPageNew(
+                              artworkId: artworkId,
                               title: title,
-                              artist: 'Artist Name',
+                              artist: artistName,
+                              artistId: artistId,
                               imageUrl: imageUrl,
+                              startingPrice: startingPrice,
+                              currentPrice: price,
+                              bidCount: bidCount,
                             ),
                           ),
                         );
@@ -457,67 +681,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildArtworkListItem(String title, String price, String imageUrl) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AuctionDetailPage(
-              title: title,
-              artist: 'Artist Name',
-              imageUrl: imageUrl,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.2),
-              spreadRadius: 1,
-              blurRadius: 5,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            ArtworkImage(
-              imageUrl: imageUrl,
-              width: 80,
-              height: 80,
-              borderRadius: BorderRadius.circular(8),
-              placeholderIconSize: 35,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Current Bid: $price',
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward, color: Colors.grey),
-          ],
-        ),
-      ),
-    );
+  String _formatPrice(double price) {
+    if (price >= 1000) {
+      return '${(price / 1000).toStringAsFixed(1)}k';
+    }
+    return price.toStringAsFixed(0);
   }
 }

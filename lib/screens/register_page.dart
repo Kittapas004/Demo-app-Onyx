@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
 import 'home_page.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -9,12 +11,18 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _birthDateController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  String _selectedGender = 'Male'; // Default gender
   
   // Art Categories Selection
   final Set<String> _selectedCategories = {};
@@ -31,15 +39,104 @@ class _RegisterPageState extends State<RegisterPage> {
   ];
 
   @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _birthDateController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRegister() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Check password match
+    if (_passwordController.text != _confirmPasswordController.text) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('รหัสผ่านไม่ตรงกัน'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      
+      // Combine first name and last name
+      final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+      
+      // Register with Firebase
+      await authService.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        name: fullName,
+        phone: _phoneController.text.trim(),
+        address: 'Gender: $_selectedGender, Birth: ${_birthDateController.text.trim()}',
+        categories: _selectedCategories.toList(), // Send all selected categories
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registration successful!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        
+        // Refresh page after 1 second
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) {
+          // ignore: use_build_context_synchronously
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const HomePage()),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Logo
               Center(
                 child: Column(
@@ -107,7 +204,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         TextField(
                           controller: _firstNameController,
                           decoration: InputDecoration(
-                            hintText: 'Lois',
+                            hintText: 'Your first name',
                             filled: true,
                             fillColor: Colors.white,
                             border: OutlineInputBorder(
@@ -129,7 +226,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         TextField(
                           controller: _lastNameController,
                           decoration: InputDecoration(
-                            hintText: 'Becket',
+                            hintText: 'Your last name',
                             filled: true,
                             fillColor: Colors.white,
                             border: OutlineInputBorder(
@@ -151,7 +248,7 @@ class _RegisterPageState extends State<RegisterPage> {
               TextField(
                 controller: _emailController,
                 decoration: InputDecoration(
-                  hintText: 'Loisbecket@gmail.com',
+                  hintText: 'your.email@example.com',
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -168,7 +265,7 @@ class _RegisterPageState extends State<RegisterPage> {
               TextField(
                 controller: _birthDateController,
                 decoration: InputDecoration(
-                  hintText: '18/03/2024',
+                  hintText: 'DD/MM/YYYY',
                   filled: true,
                   fillColor: Colors.white,
                   suffixIcon: const Icon(Icons.calendar_today),
@@ -180,13 +277,42 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 16),
 
+              // Gender Selection
+              const Text('Gender'),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedGender,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(value: 'Male', child: Text('Male')),
+                      DropdownMenuItem(value: 'Female', child: Text('Female')),
+                      DropdownMenuItem(value: 'Other', child: Text('Other')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedGender = value!;
+                      });
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Phone Number
               const Text('Phone Number'),
               const SizedBox(height: 8),
               TextField(
                 controller: _phoneController,
                 decoration: InputDecoration(
-                  hintText: '(454) 726-0592',
+                  hintText: 'your phone number',
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -200,14 +326,69 @@ class _RegisterPageState extends State<RegisterPage> {
               // Password
               const Text('Set Password'),
               const SizedBox(height: 8),
-              TextField(
+              TextFormField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: _obscurePassword,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'กรุณากรอกรหัสผ่าน';
+                  }
+                  if (value.length < 6) {
+                    return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+                  }
+                  return null;
+                },
                 decoration: InputDecoration(
                   hintText: '*******',
                   filled: true,
                   fillColor: Colors.white,
-                  suffixIcon: const Icon(Icons.visibility_off),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.grey),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Confirm Password
+              const Text('Confirm Password'),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _confirmPasswordController,
+                obscureText: _obscureConfirmPassword,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'กรุณายืนยันรหัสผ่าน';
+                  }
+                  if (value != _passwordController.text) {
+                    return 'รหัสผ่านไม่ตรงกัน';
+                  }
+                  return null;
+                },
+                decoration: InputDecoration(
+                  hintText: '*******',
+                  filled: true,
+                  fillColor: Colors.white,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                      });
+                    },
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: Colors.grey),
@@ -322,14 +503,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   width: 200,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const HomePage(),
-                        ),
-                      );
-                    },
+                    onPressed: _isLoading ? null : _handleRegister,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E293B),
                       foregroundColor: Colors.white,
@@ -337,18 +511,28 @@ class _RegisterPageState extends State<RegisterPage> {
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                    child: const Text(
-                      'REGISTER',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'REGISTER',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
               ),
             ],
           ),
+        ),
         ),
       ),
     );

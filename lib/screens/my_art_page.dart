@@ -1,9 +1,48 @@
 import 'package:flutter/material.dart';
-import '../models/art_repository.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
 import '../widgets/placeholder_image.dart';
 
-class MyArtPage extends StatelessWidget {
+class MyArtPage extends StatefulWidget {
   const MyArtPage({super.key});
+
+  @override
+  State<MyArtPage> createState() => _MyArtPageState();
+}
+
+class _MyArtPageState extends State<MyArtPage> {
+  String _userName = 'Loading...';
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      
+      if (currentUser != null) {
+        setState(() {
+          _userId = currentUser.uid;
+        });
+        
+        final userData = await authService.getUserData(currentUser.uid);
+        
+        if (mounted && userData != null) {
+          setState(() {
+            _userName = userData['name'] ?? currentUser.email?.split('@').first ?? 'User';
+          });
+        }
+      }
+    } catch (e) {
+      // Handle error silently
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,47 +66,100 @@ class MyArtPage extends StatelessWidget {
         child: Column(
           children: [
             Row(
-              children: const [
+              children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundImage: NetworkImage(
-                    'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
+                  child: Text(
+                    _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Text(
-                  'Lois Becket',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  _userName,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            // Render dynamic items from repository
-            for (final item in ArtRepository.instance.items) ...[
-              _buildArtCard(
-                item.title,
-                item.startPrice,
-                item.currentPrice,
-                item.peopleCount,
-                item.timeRemaining,
-                item.imageUrl,
-              ),
-              const SizedBox(height: 16),
-            ],
+            // Load artworks from Firestore
+            _userId == null
+                ? const Center(child: CircularProgressIndicator())
+                : StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('artworks')
+                        .where('artistId', isEqualTo: _userId!)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(40.0),
+                            child: Text(
+                              'Error: ${snapshot.error}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.red, fontSize: 16),
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40.0),
+                      child: Text(
+                        'No artworks yet.\nCreate your first artwork!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                    ),
+                  );
+                }
+
+                final artworks = snapshot.data!.docs;
+
+                return Column(
+                  children: artworks.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _buildArtCard(
+                        title: data['title'] ?? 'Untitled',
+                        startPrice: '\$${_formatPrice(data['startingPrice']?.toDouble() ?? 0)}',
+                        currentPrice: '\$${_formatPrice(data['currentBid']?.toDouble() ?? 0)}',
+                        bidCount: (data['bidCount'] ?? 0).toString(),
+                        imageUrl: data['imageUrl'] ?? '',
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildArtCard(
-    String title,
-    String startPrice,
-    String currentPrice,
-    String peopleCount,
-    String timeRemaining,
-    String imageUrl,
-  ) {
+  String _formatPrice(double price) {
+    if (price >= 1000) {
+      return '${(price / 1000).toStringAsFixed(1)}k';
+    }
+    return price.toStringAsFixed(0);
+  }
+
+  Widget _buildArtCard({
+    required String title,
+    required String startPrice,
+    required String currentPrice,
+    required String bidCount,
+    required String imageUrl,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0A1628),
@@ -157,7 +249,7 @@ class MyArtPage extends StatelessWidget {
                               const Icon(Icons.people, color: Colors.white70, size: 20),
                               const SizedBox(width: 8),
                               Text(
-                                '$peopleCount people are live',
+                                '$bidCount bidders',
                                 style: const TextStyle(color: Colors.white70),
                               ),
                             ],
@@ -166,9 +258,9 @@ class MyArtPage extends StatelessWidget {
                             children: [
                               const Icon(Icons.access_time, color: Colors.orange, size: 20),
                               const SizedBox(width: 4),
-                              Text(
-                                '$timeRemaining remaining',
-                                style: const TextStyle(color: Colors.white70),
+                              const Text(
+                                '01:23 remaining',
+                                style: TextStyle(color: Colors.white70),
                               ),
                             ],
                           ),

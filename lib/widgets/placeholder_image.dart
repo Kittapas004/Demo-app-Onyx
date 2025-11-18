@@ -69,6 +69,43 @@ class ArtworkImage extends StatelessWidget {
       );
     }
 
+    // ถ้าเป็น avatar style (เหมือนรูปโปรไฟล์)
+    if (imageUrl!.startsWith('avatar://')) {
+      final letter = imageUrl!.replaceFirst('avatar://', '');
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          gradient: LinearGradient(
+            colors: [Colors.blue[300]!, Colors.blue[600]!],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            letter,
+            style: TextStyle(
+              fontSize: placeholderIconSize,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ถ้าเป็น placeholder style
+    if (imageUrl!.startsWith('placeholder://')) {
+      return PlaceholderImage(
+        width: width,
+        height: height,
+        iconSize: placeholderIconSize,
+        borderRadius: borderRadius,
+      );
+    }
+
     // ตรวจสอบว่าเป็น SVG หรือไม่ (ซึ่งไม่รองรับโดย Image.network)
     final lowerUrl = imageUrl!.toLowerCase();
     if (lowerUrl.endsWith('.svg') || lowerUrl.contains('.svg?')) {
